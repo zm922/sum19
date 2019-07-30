@@ -7,17 +7,20 @@ n.stocks = 100
 Dat = Dat[, 1:n.stocks, drop = FALSE]
 cnames = colnames(Dat)
 
-# model spec
+# Well first use the multifit function so that we obtain an object which
+# can be passed to the dccfit, thus elimimating the need to estimate
+# multiple times the first stage
 
+# assume the same volitlity model for each asset 
 uspec.n = multispec(replicate(n.stocks, ugarchspec(mean.model = list(armaOrder = c(1,0)))))
 
 multf = multifit(uspec.n, Dat)
 
+# normal dist - student also supported
+# correlation specification
 spec2 = dccspec(uspec = uspec.n, dccOrder = c(1, 1), distribution = 'mvnorm')
 
 fit2 = dccfit(spec2, data = Dat, fit.control = list(eval.se=FALSE), fit = multf)
-
-
 
 vspec = vector(mode = "list", length = n.stocks)
 midx = fit2@model$midx
