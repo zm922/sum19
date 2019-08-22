@@ -28,6 +28,7 @@ target_list_2 = ['FOX', 'FISV', 'EXPE', 'FAST', 'ESRX', 'DLTR', 'CTSH', 'CSCO', 
                  'AMGN', 'WFM', 'WDC', 'NVDA', 'STX']
 
 
+
 def normalize(x):
     """ Create a universal normalization function across close/open ratio
 
@@ -151,7 +152,7 @@ def create_target_dataset(target_list, filepath='datasets/stocks_history_target.
     write_to_h5py(history, target_list, filepath=filepath)
 
 
-def read_stock_history(filepath='datasets/stocks_history.h5'):
+def read_stock_history(filepath='utils/datasets/stocks_history_2.h5'):
     """ Read data from extracted h5
 
     Args:
@@ -165,7 +166,7 @@ def read_stock_history(filepath='datasets/stocks_history.h5'):
     with h5py.File(filepath, 'r') as f:
         history = f['history'][:]
         abbreviation = f['abbreviation'][:].tolist()
-        abbreviation = [abbr.decode('utf-8') for abbr in abbreviation]
+#         abbreviation = [abbr.decode('utf-8') for abbr in abbreviation]
     return history, abbreviation
 
 
