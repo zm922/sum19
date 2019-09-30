@@ -260,7 +260,7 @@ if __name__ == '__main__':
     else:
         DEBUG = False
 
-    history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_history_target.h5')
+    history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_mgarch_history1.h5')
     history = history[:, :, :4]
     target_stocks = abbreviation
     num_training_time = 1095
@@ -273,7 +273,7 @@ if __name__ == '__main__':
         target_history[i] = history[abbreviation.index(stock), :num_training_time, :]
 
     # setup environment
-    env = PortfolioEnv(target_history, target_stocks, steps=1000, window_length=window_length)
+    env = PortfolioEnv(target_history, target_stocks, steps=900, window_length=window_length)
 
     action_dim = [nb_classes]
     state_dim = [nb_classes, window_length]
