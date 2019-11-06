@@ -124,13 +124,13 @@ class PortfolioSim(object):
     p0 = 1.0
     infos = []
 
-    def __init__(self, asset_names=list(), steps=730, trading_cost=0.0025, time_cost=0.0):
+    def __init__(self, asset_names=list(), steps=730, trading_cost=1.0, time_cost=0.0):
         self.asset_names = asset_names
         self.cost = trading_cost
         self.time_cost = time_cost
         self.steps = steps
 
-    def _step(self, w1, y1):
+    def _step(self, w1, y1, c1):
         """
         Step.
         w1 - new action of portfolio weights - e.g. [0.1,0.9,0.0]
@@ -145,7 +145,9 @@ class PortfolioSim(object):
 
         dw1 = (y1 * w1) / (np.dot(y1, w1) + eps)  # (eq7) weights evolve into
 
-        mu1 = self.cost * (np.abs(dw1 - w1)).sum()  # (eq16) cost to change portfolio
+        mu1 = self.cost * c1 * (np.abs(dw1 - w1)).sum()  # (eq16) cost to change portfolio with condition number cost
+
+        # mu1 = self.cost * (np.abs(dw1 - w1)).sum() # (eq16) cost to change portfolio
 
         assert mu1 < 1.0, 'Cost is larger than current holding'
 
@@ -274,8 +276,10 @@ class PortfolioEnv(gym.Env):
         # relative price vector of last observation day (close/open)
         close_price_vector = observation[:, -1, 3]
         open_price_vector = observation[:, -1, 0]
+        # condition number
+        c1 = observation[0, -1, 1]
         y1 = close_price_vector / open_price_vector
-        reward, info, done2 = self.sim._step(weights, y1)
+        reward, info, done2 = self.sim._step(weights, y1, c1)
 
         # calculate return for buy and hold a bit of each asset
         info['market_value'] = np.cumprod([inf["return"] for inf in self.infos + [info]])[-1]
