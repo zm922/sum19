@@ -144,7 +144,9 @@ class PortfolioSim(object):
         p0 = self.p0
 
         dw1 = (y1 * w1) / (np.dot(y1, w1) + eps)  # (eq7) weights evolve into
-
+        
+        # quadratic penalty needed
+        ### UPDATE
         mu1 = self.cost * c1 * (np.abs(dw1 - w1)).sum()  # (eq16) cost to change portfolio with condition number cost
 
         # mu1 = self.cost * (np.abs(dw1 - w1)).sum() # (eq16) cost to change portfolio
@@ -277,6 +279,7 @@ class PortfolioEnv(gym.Env):
         close_price_vector = observation[:, -1, 3]
         open_price_vector = observation[:, -1, 0]
         # condition number
+        ### UPDATE
         c1 = observation[0, -1, 1]
         y1 = close_price_vector / open_price_vector
         reward, info, done2 = self.sim._step(weights, y1, c1)
@@ -384,6 +387,9 @@ class MultiActionPortfolioEnv(PortfolioEnv):
         # relative price vector of last observation day (close/open)
         close_price_vector = observation[:, -1, 3]
         open_price_vector = observation[:, -1, 0]
+        # condition number
+        ### UPDATE
+        c1 = observation[0, -1, 1]
         y1 = close_price_vector / open_price_vector
 
         rewards = np.empty(shape=(weights.shape[0]))
