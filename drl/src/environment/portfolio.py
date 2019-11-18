@@ -70,7 +70,7 @@ class DataGenerator(object):
         self._data = history.copy()  # all data
         self.asset_names = copy.copy(abbreviation)
         
-        # get data for this episode, each episode might be different.
+        # get data for this episode, each episode might be different. you can change start date for each episode
         if self.start_date is None:
             self.idx = np.random.randint(low=self.window_length, high=self._data.shape[1] - self.steps)
         else:
@@ -84,6 +84,10 @@ class DataGenerator(object):
         # get observation matrix from history, exclude volume, maybe volume is useful as it
         # indicates how market total investment changes. Normalize could be critical here
         self.step += 1
+        # data in shape [num_assets, num_days, 4]
+        # last dim = [open, condition_num,condition_num, close]
+
+        # sees future?
         obs = self._data[:, self.step:self.step + self.window_length, :].copy()
         # normalize obs with open price
 
@@ -183,6 +187,24 @@ class PortfolioSim(object):
         self.infos = []
         self.p0 = 1.0
 
+#### environment ####
+'''
+environments are rendered at each step
+step moves the environment forward
+step returns 4 values:
+    -   observation (object): an environment-specific object representing your observation of the environment. 
+        For example, pixel data from a camera, joint angles and joint velocities of a robot, or the board state in a board game.
+    -   reward (float): amount of reward achieved by the previous action. 
+        The scale varies between environments, but the goal is always to increase your total reward.
+    -   done (boolean): whether it’s time to reset the environment again. Most (but not all) tasks are divided up into well-defined episodes, 
+        and done being True indicates the episode has terminated. (For example, perhaps the pole tipped too far, or you lost your last life.)
+    -   info (dict): diagnostic information useful for debugging. It can sometimes be useful for learning (for example, 
+        it might contain the raw probabilities behind the environment’s last state change). 
+        However, official evaluations of your agent are not allowed to use this for learning.
+
+Every environment comes with an action_space and an observation_space. These attributes are of type Space, 
+and they describe the format of valid actions and observations:
+'''
 
 class PortfolioEnv(gym.Env):
     """
@@ -221,6 +243,7 @@ class PortfolioEnv(gym.Env):
         self.window_length = window_length
         self.num_stocks = history.shape[0]
         self.start_idx = start_idx
+
 
         self.src = DataGenerator(history, abbreviation, steps=steps, window_length=window_length, start_idx=start_idx,
                                  start_date=sample_start_date)
@@ -266,6 +289,7 @@ class PortfolioEnv(gym.Env):
         np.testing.assert_almost_equal(
             np.sum(weights), 1.0, 3, err_msg='weights should sum to 1. action="%s"' % weights)
 
+        # step in source
         observation, done1, ground_truth_obs = self.src._step()
 
         # concatenate observation with ones

@@ -49,6 +49,7 @@ def stock_predictor(inputs, predictor_type, use_batch_norm):
     window_length = inputs.get_shape()[2]
     assert predictor_type in ['cnn', 'lstm'], 'type must be either cnn or lstm'
     if predictor_type == 'cnn':
+        # 32 filters, filter size is (1,3)
         net = tflearn.conv_2d(inputs, 32, (1, 3), padding='valid')
         if use_batch_norm:
             net = tflearn.layers.normalization.batch_normalization(net)
@@ -99,6 +100,7 @@ class StockActor(ActorNetwork):
         assert window_length > 2, 'This architecture only support window length larger than 2.'
         inputs = tflearn.input_data(shape=[None] + self.s_dim + [1], name='input')
 
+        # stock_predictor is conv2d network defined above
         net = stock_predictor(inputs, self.predictor_type, self.use_batch_norm)
 
         net = tflearn.fully_connected(net, 64)
@@ -120,6 +122,7 @@ class StockActor(ActorNetwork):
 
     def train(self, inputs, a_gradient):
         window_length = self.s_dim[1]
+        ### ISSUE: inputs take in open,close,hi,lo
         inputs = inputs[:, :, -window_length:, :]
         self.sess.run(self.optimize, feed_dict={
             self.inputs: inputs,

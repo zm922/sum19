@@ -98,13 +98,19 @@ class DDPG(BaseModel):
             if verbose and debug:
                 print("Episode: " + str(i) + " Replay Buffer " + str(self.buffer.count()))
 
+            # resetting environment returns obs, info
+            # obs = data = self._data[:, self.idx - self.window_length:self.idx + self.steps + 1, :4]
+            # self.data = data
+            # return self.data[:, self.step:self.step + self.window_length, :].copy()
+            
+            # resets sim: sets p0=1
             previous_observation = self.env.reset()
             if self.obs_normalizer:
                 previous_observation = self.obs_normalizer(previous_observation)
 
             ep_reward = 0
             ep_ave_max_q = 0
-            # keeps sampling until done
+            # keeps sampling until done - default max step = 1000
             for j in range(self.config['max step']):
                 action = self.actor.predict(np.expand_dims(previous_observation, axis=0)).squeeze(
                     axis=0) + self.actor_noise()
@@ -120,15 +126,17 @@ class DDPG(BaseModel):
                     observation = self.obs_normalizer(observation)
 
                 # add to buffer
+                # s = previous_obs, a, r, done, s2=obs
                 self.buffer.add(previous_observation, action, reward, done, observation)
 
                 if self.buffer.size() >= batch_size:
                     # batch update
                     s_batch, a_batch, r_batch, t_batch, s2_batch = self.buffer.sample_batch(batch_size)
-                    # Calculate targets
+                    # Calculate targets - this is off-policy
                     target_q = self.critic.predict_target(s2_batch, self.actor.predict_target(s2_batch))
 
                     y_i = []
+                    ## ??
                     for k in range(batch_size):
                         if t_batch[k]:
                             y_i.append(r_batch[k])
