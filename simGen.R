@@ -3,11 +3,9 @@ library(rmgarch)
 library(RcppCNPy)
 library(rTensor)
 
-# Read in the data
-# name_data <- scan("/Users/zachariemartin/Desktop/School/Projects/summer2019/sum19/listfile.txt", what="", sep="\n")
-
-# file
-Dat = read.csv(file="Desktop/School/Projects/summer2019/sum19/zprocess_data.csv", header=TRUE, sep=",")
+# Read in the data from data_create.ipynb
+filepath = "/Users/zachariemartin/Desktop/School/Projects/summer2019/2/sum19/data/zprocess_data.csv"
+Dat = read.csv(file=filepath, header=TRUE, sep=",")
 rownames(Dat) <- Dat$date
 Dat <- Dat[-c(1)]
 # n.stocks = dim(Dat)[2]
@@ -74,10 +72,8 @@ cov1 = rcov(fit2)  # extracts the covariance matrix
 # save simulated cov matrices in numpy format
 npySave("mgarch_sim_3000_cov100.npy", cov_mats)
 
-write.csv(cov_mats,'mgarch_sim_3000_cov100.csv')
-
-
-#save(cov1, file="covMats.RData")
+# save simulated cov matrices in csv format
+# write.csv(cov_mats,'mgarch_sim_3000_cov100.csv')
 
 # save returns
 #returns_df <- data.frame(returns)
