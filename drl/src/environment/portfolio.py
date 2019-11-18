@@ -128,9 +128,9 @@ class PortfolioSim(object):
     p0 = 1.0
     infos = []
 
-    def __init__(self, asset_names=list(), steps=730, trading_cost=1.0, time_cost=0.0):
+    def __init__(self, asset_names=list(), steps=730, epsilon=0.01, time_cost=0.0):
         self.asset_names = asset_names
-        self.cost = trading_cost
+        self.epsilon = epsilon
         self.time_cost = time_cost
         self.steps = steps
 
@@ -149,15 +149,16 @@ class PortfolioSim(object):
 
         dw1 = (y1 * w1) / (np.dot(y1, w1) + eps)  # (eq7) weights evolve into
         
-        # quadratic penalty needed
         ### UPDATE
-        mu1 = self.cost * c1 * (np.abs(dw1 - w1)).sum()  # (eq16) cost to change portfolio with condition number cost
+        mu1 = self.epsilon * c1 * (np.square(dw1 - w1)).sum()  # (eq16) cost to change portfolio with condition number cost and quadratic penalty - MODIFIED
 
-        # mu1 = self.cost * (np.abs(dw1 - w1)).sum() # (eq16) cost to change portfolio
+        # mu1 = self.cost * (np.abs(dw1 - w1)).sum() # (eq16) cost to change portfolio - ORIGINAL
 
-        assert mu1 < 1.0, 'Cost is larger than current holding'
+        # assert mu1 < 1.0, 'Cost is larger than current holding'
 
-        p1 = p0 * (1 - mu1) * np.dot(y1, w1)  # (eq11) final portfolio value
+        # p1 = p0 * (1 - mu1) * np.dot(y1, w1)  # (eq11) final portfolio value - ORIGINAL
+
+        p1 = p0 * np.dot(y1, w1) - mu1 # (eq11) final portfolio value - MODIFIED
 
         p1 = p1 * (1 - self.time_cost)  # we can add a cost to holding
 
@@ -222,7 +223,7 @@ class PortfolioEnv(gym.Env):
                  history,
                  abbreviation,
                  steps=730,  # 2 years
-                 trading_cost=0.0025,
+                 epsilon=0.01,
                  time_cost=0.00,
                  window_length=50,
                  start_idx=0,
@@ -234,7 +235,7 @@ class PortfolioEnv(gym.Env):
             steps - steps in episode
             scale - scale data and each episode (except return)
             augment - fraction to randomly shift data by
-            trading_cost - cost of trade as a fraction
+            epsilon - see formula
             time_cost - cost of holding as a fraction
             window_length - how many past observations to return
             start_idx - The number of days from '2012-08-13' of the dataset
@@ -250,7 +251,7 @@ class PortfolioEnv(gym.Env):
 
         self.sim = PortfolioSim(
             asset_names=abbreviation,
-            trading_cost=trading_cost,
+            epsilon=epsilon,
             time_cost=time_cost,
             steps=steps)
 
@@ -362,19 +363,19 @@ class MultiActionPortfolioEnv(PortfolioEnv):
                  abbreviation,
                  model_names,
                  steps=730,  # 2 years
-                 trading_cost=0.0025,
+                 epsilon=0.01,
                  time_cost=0.00,
                  window_length=50,
                  start_idx=0,
                  sample_start_date=None,
                  ):
-        super(MultiActionPortfolioEnv, self).__init__(history, abbreviation, steps, trading_cost, time_cost, window_length,
+        super(MultiActionPortfolioEnv, self).__init__(history, abbreviation, steps, epsilon, time_cost, window_length,
                               start_idx, sample_start_date)
         self.model_names = model_names
         # need to create each simulator for each model
         self.sim = [PortfolioSim(
             asset_names=abbreviation,
-            trading_cost=trading_cost,
+            epsilon=epsilon,
             time_cost=time_cost,
             steps=steps) for _ in range(len(self.model_names))]
 
