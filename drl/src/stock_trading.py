@@ -13,6 +13,7 @@ from environment.portfolio import PortfolioEnv
 from utils.data import read_stock_history, normalize
 
 import numpy as np
+import pandas as pd
 import tflearn
 import tensorflow as tf
 import argparse
@@ -243,6 +244,20 @@ def test_model_multiple(env, models):
         actions = np.array(actions)
         observation, _, done, info = env.step(actions)
     env.render()
+
+def convert_R_output(coef_path,Q_bar_path, num_assets):
+
+    # load R ouputs
+    Q_bar = pd.read_csv(Q_bar_path).drop('Unnamed: 0',axis=1).to_numpy() 
+    coef = pd.read_csv(coef_path)
+
+    # mu, ar1, omega, alpha, beta 0,1,2,3,4 for each asset - 5 values for each asset so 5*num_assets total values
+    alpha = np.array([coef.loc[i,'x'] for i in range(3,5*num_assets,5)])
+    beta = np.array([coef.loc[i,'x'] for i in range(4,5*num_assets,5)])
+    omega = np.array([coef.loc[i,'x'] for i in range(2,5*num_assets,5)])
+
+    return alpha, beta, omega, Q_bar
+
 
 
 if __name__ == '__main__':

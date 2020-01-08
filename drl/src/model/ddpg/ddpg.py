@@ -70,7 +70,7 @@ class DDPG(BaseModel):
             print('Build model from scratch')
             self.sess.run(tf.global_variables_initializer())
 
-    def train(self, save_every_episode=1, verbose=True, debug=False):
+    def train(self, save_every_episode=1, verbose=True, debug=True):
         """ Must already call intialize
 
         Args:

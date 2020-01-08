@@ -47,10 +47,15 @@ class DataGenerator(object):
     
     step = 0
     
-    def __init__(self, history, abbreviation, steps=730, window_length=50, start_idx=0, start_date=None):
+    # def __init__(self, history, abbreviation, steps=730, window_length=50, start_idx=0, start_date=None):
+    def __init__(self, parameters, steps=730, window_length=50, start_idx=0, start_date=None):
         """
+        New Args:
+            parameters: dictionary of mgarch parameters from R
+            steps: the total number of steps to simulate, default is 2 years
+            window_length: observation window, must be less than 50
 
-        Args:
+        Old Args:
             history: (num_stocks, timestamp, 5) open, high, low, close, volume
             abbreviation: a list of length num_stocks with assets name
             steps: the total number of steps to simulate, default is 2 years
@@ -58,27 +63,30 @@ class DataGenerator(object):
             start_date: the date to start. Default is None and random pick one.
                         It should be a string e.g. '2012-08-13'
         """
-        assert history.shape[0] == len(abbreviation), 'Number of stock is not consistent'
+        # assert history.shape[0] == len(abbreviation), 'Number of stock is not consistent'
         import copy
 
         self.steps = steps + 1
         self.window_length = window_length
-        self.start_idx = start_idx
-        self.start_date = start_date
+        # self.start_idx = start_idx
+        # self.start_date = start_date
 
         # make immutable class
-        self._data = history.copy()  # all data
-        self.asset_names = copy.copy(abbreviation)
-        
+        # self._data = history.copy()  # all data
+        # self.asset_names = copy.copy(abbreviation)
+
+        # NEW
+        self._data = self.generate_data(parameters)
+        print('Data generated')
         # get data for this episode, each episode might be different. you can change start date for each episode
-        if self.start_date is None:
-            self.idx = np.random.randint(low=self.window_length, high=self._data.shape[1] - self.steps)
-        else:
-            # compute index corresponding to start_date for repeatable sequence
-            self.idx = date_to_index(self.start_date) - self.start_idx
-            assert self.idx >= self.window_length and self.idx <= self._data.shape[1] - self.steps, \
-                'Invalid start date, must be window_length day after start date and simulation steps day before end date'
-        print('Start date: {}'.format(index_to_date(self.idx)))
+        # if self.start_date is None:
+        #     self.idx = np.random.randint(low=self.window_length, high=self._data.shape[1] - self.steps)
+        # else:
+        #     # compute index corresponding to start_date for repeatable sequence
+        #     self.idx = date_to_index(self.start_date) - self.start_idx
+        #     assert self.idx >= self.window_length and self.idx <= self._data.shape[1] - self.steps, \
+        #         'Invalid start date, must be window_length day after start date and simulation steps day before end date'
+        # print('Start date: {}'.format(index_to_date(self.idx)))
 
     def _step(self):
         # get observation matrix from history, exclude volume, maybe volume is useful as it
@@ -87,7 +95,6 @@ class DataGenerator(object):
         # data in shape [num_assets, num_days, 4]
         # last dim = [open, condition_num,condition_num, close]
 
-        # sees future?
         obs = self._data[:, self.step:self.step + self.window_length, :].copy()
         # normalize obs with open price
 
@@ -115,6 +122,62 @@ class DataGenerator(object):
         self.data = data
         return self.data[:, self.step:self.step + self.window_length, :].copy(), \
                self.data[:, self.step + self.window_length:self.step + self.window_length + 1, :].copy()
+
+    
+    def generate_data(self):
+
+        T = self.steps
+        Q_bar = self.parameters['Q_bar']
+        Q = self.parameters['Q']
+        num_assets = self.parameters['num_assets']
+        e = self.parameters['e']
+
+        condNum_list = []
+        a_list = []
+
+        # initialize
+        a0 = np.linalg.cholesky(H_init)@np.random.multivariate_normal(np.zeros(num_assets),1*np.identity(num_assets))
+
+        # needed to ensure H psd
+        h0 = np.ones(num_assets)*e
+        Q = pd.read_csv('Q_init.csv').drop('Unnamed: 0',axis=1).to_numpy()
+
+        for t in range(T):
+            # compute R_t
+            Q_star_inv = np.linalg.inv(np.diag(Q.diagonal()))
+
+            R = Q_star_inv@Q_bar@Q_star_inv
+
+            # compute D_t
+            h1 = omega + alpha*a0**2 + beta*h0
+            D = np.power(np.diag(h1),1/2)
+            
+            # compute H
+            H = D@R@D
+
+            # draw z
+            z = np.random.multivariate_normal(np.zeros(num_assets),1*np.identity(num_assets))
+
+            # compute a: a = 𝐻^1/2 @ z
+            a1 = np.linalg.cholesky(H)@z
+            
+            # draw e
+            e = np.random.multivariate_normal(np.zeros(num_assets),R)
+            
+            # step Q
+            Q = (1-a-b)*Q_bar + a*np.outer(e,e) + b*Q
+            
+            # step a,h
+            h0 = h1
+            a0 = a1.squeeze()
+            
+            # covariance matrices - keep track of our generated data
+            condNum_list.append(np.linalg.cond(H))
+            # returns
+            a_list.append(a0)
+            
+            return np.vstack(a_list), condNum_list
+
 
 
 class PortfolioSim(object):
@@ -246,8 +309,11 @@ class PortfolioEnv(gym.Env):
         self.start_idx = start_idx
 
 
-        self.src = DataGenerator(history, abbreviation, steps=steps, window_length=window_length, start_idx=start_idx,
-                                 start_date=sample_start_date)
+        # self.src = DataGenerator(history, abbreviation, steps=steps, window_length=window_length, start_idx=start_idx,
+        #                          start_date=sample_start_date)
+
+        self.src = DataGenerator(parameters, steps=steps, window_length=window_length, start_idx=start_idx,
+                                  start_date=sample_start_date)
 
         self.sim = PortfolioSim(
             asset_names=abbreviation,
