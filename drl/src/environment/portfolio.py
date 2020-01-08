@@ -41,14 +41,13 @@ def max_drawdown(returns):
     trough = returns[returns.argmax():].min()
     return (trough - peak) / (peak + eps)
 
-
 class DataGenerator(object):
     """Acts as data provider for each new episode."""
     
     step = 0
     
     # def __init__(self, history, abbreviation, steps=730, window_length=50, start_idx=0, start_date=None):
-    def __init__(self, parameters, steps=730, window_length=50, start_idx=0, start_date=None):
+    def __init__(self, parameters, steps=730, window_length=50, start_idx=0):
         """
         New Args:
             parameters: dictionary of mgarch parameters from R
@@ -66,8 +65,10 @@ class DataGenerator(object):
         # assert history.shape[0] == len(abbreviation), 'Number of stock is not consistent'
         import copy
 
+        self.parameters = parameters
         self.steps = steps + 1
         self.window_length = window_length
+        self.idx = 0
         # self.start_idx = start_idx
         # self.start_date = start_date
 
@@ -76,7 +77,8 @@ class DataGenerator(object):
         # self.asset_names = copy.copy(abbreviation)
 
         # NEW
-        self._data = self.generate_data(parameters)
+        self._data = self.generate_data()
+        
         print('Data generated')
         # get data for this episode, each episode might be different. you can change start date for each episode
         # if self.start_date is None:
@@ -92,22 +94,27 @@ class DataGenerator(object):
         # get observation matrix from history, exclude volume, maybe volume is useful as it
         # indicates how market total investment changes. Normalize could be critical here
         self.step += 1
-        # data in shape [num_assets, num_days, 4]
-        # last dim = [open, condition_num,condition_num, close]
-
+        
+        # OLD
+        # data in shape [num_assets, num_days, 3]
+        # last dim = [open, close, condition_num]
         obs = self._data[:, self.step:self.step + self.window_length, :].copy()
+        
         # normalize obs with open price
-
+        
+        # OLD
         # used for compute optimal action and sanity check
         ground_truth_obs = self._data[:, self.step + self.window_length:self.step + self.window_length + 1, :].copy()
-
+        
         done = self.step >= self.steps
         return obs, done, ground_truth_obs
 
     def reset(self):
         self.step = 0
-
+        
         # get data for this episode, each episode might be different.
+        # OLD
+        '''
         if self.start_date is None:
             self.idx = np.random.randint(
                 low=self.window_length, high=self._data.shape[1] - self.steps)
@@ -117,41 +124,44 @@ class DataGenerator(object):
             assert self.idx >= self.window_length and self.idx <= self._data.shape[1] - self.steps, \
                 'Invalid start date, must be window_length day after start date and simulation steps day before end date'
         # print('Start date: {}'.format(index_to_date(self.idx)))
-        data = self._data[:, self.idx - self.window_length:self.idx + self.steps + 1, :4]
+        '''
+        
+        data = self._data[:, self.idx - self.window_length:self.idx + self.steps + 1, :]
         # apply augmentation?
         self.data = data
         return self.data[:, self.step:self.step + self.window_length, :].copy(), \
                self.data[:, self.step + self.window_length:self.step + self.window_length + 1, :].copy()
-
-    
+        
+       
     def generate_data(self):
 
         T = self.steps
         Q_bar = self.parameters['Q_bar']
         Q = self.parameters['Q']
         num_assets = self.parameters['num_assets']
-        e = self.parameters['e']
+        small_scalar = self.parameters['small_scalar']
 
         condNum_list = []
         a_list = []
 
         # initialize
-        a0 = np.linalg.cholesky(H_init)@np.random.multivariate_normal(np.zeros(num_assets),1*np.identity(num_assets))
+        a0 = np.linalg.cholesky(parameters['H_init'])@np.random.multivariate_normal(np.zeros(parameters['num_assets']),1*np.identity(parameters['num_assets']))
 
         # needed to ensure H psd
-        h0 = np.ones(num_assets)*e
-        Q = pd.read_csv('Q_init.csv').drop('Unnamed: 0',axis=1).to_numpy()
+        h0 = np.ones(parameters['num_assets'])*parameters['small_scalar']
+
+        Q = parameters['Q']
 
         for t in range(T):
             # compute R_t
             Q_star_inv = np.linalg.inv(np.diag(Q.diagonal()))
 
-            R = Q_star_inv@Q_bar@Q_star_inv
+            R = Q_star_inv@parameters['Q_bar']@Q_star_inv
 
             # compute D_t
-            h1 = omega + alpha*a0**2 + beta*h0
+            h1 = parameters['omega'] + parameters['alpha']*a0**2 + parameters['beta']*h0
             D = np.power(np.diag(h1),1/2)
-            
+
             # compute H
             H = D@R@D
 
@@ -160,24 +170,34 @@ class DataGenerator(object):
 
             # compute a: a = 𝐻^1/2 @ z
             a1 = np.linalg.cholesky(H)@z
-            
+
             # draw e
             e = np.random.multivariate_normal(np.zeros(num_assets),R)
-            
+
             # step Q
-            Q = (1-a-b)*Q_bar + a*np.outer(e,e) + b*Q
-            
+            Q = (1-a-b)*parameters['Q_bar'] + a*np.outer(e,e) + b*Q
+
             # step a,h
             h0 = h1
             a0 = a1.squeeze()
-            
+
             # covariance matrices - keep track of our generated data
             condNum_list.append(np.linalg.cond(H))
+            H_list.append(H)
             # returns
             a_list.append(a0)
-            
-            return np.vstack(a_list), condNum_list
-
+        
+        # [assets,num_days]
+        returns_close = np.vstack(a_list).T
+        
+        # roll 1 day forward to get open,close - close becomes new open
+        returns_open = np.roll(returns_close,1,axis=1)
+        # start at 0 
+        returns_open[:,0] = np.zeros(num_assets)
+        
+        returns_stack = np.stack([returns_open,returns_close],axis=2)
+        
+        return np.concatenate((returns_stack,np.tile(np.asarray(condNum_list),(num_assets,1))[:,:,None]),axis=2)
 
 
 class PortfolioSim(object):
@@ -366,12 +386,16 @@ class PortfolioEnv(gym.Env):
         cash_ground_truth = np.ones((1, 1, ground_truth_obs.shape[2]))
         ground_truth_obs = np.concatenate((cash_ground_truth, ground_truth_obs), axis=0)
 
+
+        ### THESE AREN'T PRICES ANYMORE -- NEED TO FIX THIS??
         # relative price vector of last observation day (close/open)
-        close_price_vector = observation[:, -1, 3]
+        close_price_vector = observation[:, -1, 1]
         open_price_vector = observation[:, -1, 0]
+        
+
         # condition number
         ### UPDATE
-        c1 = observation[0, -1, 1]
+        c1 = observation[0, -1, 2]
         y1 = close_price_vector / open_price_vector
         reward, info, done2 = self.sim._step(weights, y1, c1)
 
