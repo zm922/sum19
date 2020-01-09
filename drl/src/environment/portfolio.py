@@ -301,7 +301,8 @@ class PortfolioEnv(gym.Env):
     metadata = {'render.modes': ['human', 'ansi']}
     
     infos = []
-
+    """
+    # OLD
     def __init__(self,
                  history,
                  abbreviation,
@@ -311,6 +312,15 @@ class PortfolioEnv(gym.Env):
                  window_length=50,
                  start_idx=0,
                  sample_start_date=None
+                 ):
+    """
+    def __init__(self,
+                 steps=730,  # 2 years
+                 epsilon=0.01,
+                 time_cost=0.00,
+                 window_length=50,
+                 start_idx=0,
+                 num_assets = 10
                  ):
         """
         An environment for financial portfolio management.
@@ -325,16 +335,14 @@ class PortfolioEnv(gym.Env):
             sample_start_date - The start date sampling from the history
         """
         self.window_length = window_length
-        self.num_stocks = history.shape[0]
+        self.num_stocks = num_assets
         self.start_idx = start_idx
 
 
         # self.src = DataGenerator(history, abbreviation, steps=steps, window_length=window_length, start_idx=start_idx,
         #                          start_date=sample_start_date)
 
-        self.src = DataGenerator(parameters, steps=steps, window_length=window_length, start_idx=start_idx,
-                                  start_date=sample_start_date)
-
+        self.src = DataGenerator(parameters, steps=steps, window_length=window_length, start_idx=start_idx)
         self.sim = PortfolioSim(
             asset_names=abbreviation,
             epsilon=epsilon,
@@ -499,12 +507,16 @@ class MultiActionPortfolioEnv(PortfolioEnv):
         cash_ground_truth = np.ones((1, 1, ground_truth_obs.shape[2]))
         ground_truth_obs = np.concatenate((cash_ground_truth, ground_truth_obs), axis=0)
 
+
+        ### THESE AREN'T PRICES ANYMORE -- NEED TO FIX THIS??
+
         # relative price vector of last observation day (close/open)
-        close_price_vector = observation[:, -1, 3]
+        close_price_vector = observation[:, -1, 1]
         open_price_vector = observation[:, -1, 0]
+        
         # condition number
         ### UPDATE
-        c1 = observation[0, -1, 1]
+        c1 = observation[0, -1, 2]
         y1 = close_price_vector / open_price_vector
 
         rewards = np.empty(shape=(weights.shape[0]))
