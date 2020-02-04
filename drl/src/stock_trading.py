@@ -9,7 +9,7 @@ from model.ddpg.critic import CriticNetwork
 from model.ddpg.ddpg import DDPG
 from model.ddpg.ornstein_uhlenbeck import OrnsteinUhlenbeckActionNoise
 
-from environment.portfolio import PortfolioEnv
+from environment.portfolio import PortfolioEnv, DataGenerator
 from utils.data import read_stock_history, normalize
 
 import numpy as np
@@ -19,7 +19,7 @@ import tensorflow as tf
 import argparse
 import pprint
 
-DEBUG = False
+DEBUG = True
 
 
 def get_model_path(window_length, predictor_type, use_batch_norm):
@@ -114,11 +114,12 @@ class StockActor(ActorNetwork):
             net = tflearn.layers.normalization.batch_normalization(net)
         # net = tflearn.layers.normalization.batch_normalization(net)
         net = tflearn.activations.relu(net)
-        # Final layer weights are init to Uniform[-3e-3, 3e-3]
+        # Final layer weights are init to Uniform[-3e-3, 3e-3]  
         w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
         out = tflearn.fully_connected(net, self.a_dim[0], activation='softmax', weights_init=w_init)
         # Scale output to -action_bound to action_bound
         scaled_out = tf.multiply(out, self.action_bound)
+
         return inputs, out, scaled_out
 
     def train(self, inputs, a_gradient):
@@ -133,6 +134,13 @@ class StockActor(ActorNetwork):
     def predict(self, inputs):
         window_length = self.s_dim[1]
         inputs = inputs[:, :, -window_length:, :]
+        
+        '''print test'''
+        # print('inputs.shape')
+        # print(inputs)
+        # raise SystemExit(0)
+        # print('self.scaled_out',self.scaled_out)
+        # raise SystemExit(0)
         return self.sess.run(self.scaled_out, feed_dict={
             self.inputs: inputs
         })
@@ -155,7 +163,6 @@ class StockCritic(CriticNetwork):
     def create_critic_network(self):
         inputs = tflearn.input_data(shape=[None] + self.s_dim + [1])
         action = tflearn.input_data(shape=[None] + self.a_dim)
-
         net = stock_predictor(inputs, self.predictor_type, self.use_batch_norm)
 
         # Add the action tensor in the 2nd hidden layer
@@ -217,11 +224,17 @@ def obs_normalizer(observation):
     Returns: normalized
 
     """
+    # print('bf is instance, observation shape:', len(observation))
     if isinstance(observation, tuple):
         observation = observation[0]
+    # print('af is instance, observation shape:', observation.shape)
+
     # directly use close/open ratio as feature
-    observation = observation[:, :, 3:4] / observation[:, :, 0:1]
-    observation = normalize(observation)
+    observation = np.divide(observation[:,:,1:2], observation[:,:,0:1], out=np.zeros_like(observation[:,:,0:1]),where=observation[:,:,0:1]!=0)      
+    
+    # data isn't price data so no need to do this:
+    # observation = normalize(observation)
+    
     return observation
 
 
@@ -278,9 +291,13 @@ if __name__ == '__main__':
     else:
         DEBUG = False
 
-    history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_mgarch_history1.h5')
-    history = history[:, :, :4]
-    target_stocks = abbreviation
+    # history, abbreviation = read_stock_history(filepath='utils/datasets/stocks_mgarch_history1.h5')
+    
+    # parameters = 
+
+    return_history,conditionNum_history = DataGenerator(parameters)
+    history = return_history[:, :, :2]
+    
     num_training_time = 1095
     window_length = int(args['window_length'])
     nb_classes = len(target_stocks) + 1

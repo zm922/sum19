@@ -66,6 +66,7 @@ class DataGenerator(object):
         import copy
 
         self.parameters = parameters
+        self.num_assets = self.parameters['num_assets']
         self.steps = steps + 1
         self.window_length = window_length
         self.idx = 0
@@ -77,7 +78,7 @@ class DataGenerator(object):
         # self.asset_names = copy.copy(abbreviation)
 
         # NEW
-        self._data = self.generate_data()
+        self._data, _ = self.generate_data()
         
         print('Data generated')
         # get data for this episode, each episode might be different. you can change start date for each episode
@@ -94,6 +95,7 @@ class DataGenerator(object):
         # get observation matrix from history, exclude volume, maybe volume is useful as it
         # indicates how market total investment changes. Normalize could be critical here
         self.step += 1
+        # print('step: ',self.step)
         
         # OLD
         # data in shape [num_assets, num_days, 3]
@@ -126,40 +128,50 @@ class DataGenerator(object):
         # print('Start date: {}'.format(index_to_date(self.idx)))
         '''
         
-        data = self._data[:, self.idx - self.window_length:self.idx + self.steps + 1, :]
+        # data = self._data[:, self.idx - self.window_length:self.idx + self.steps + 1, :]
+        
         # apply augmentation?
-        self.data = data
+        self.data = self._data
+        # print('self.data.shape', self.data.shape)
         return self.data[:, self.step:self.step + self.window_length, :].copy(), \
-               self.data[:, self.step + self.window_length:self.step + self.window_length + 1, :].copy()
+               self.data[:, (self.step + self.window_length):(self.step + self.window_length + 1), :].copy()
         
        
     def generate_data(self):
-
+        # IDEA: use low rank matrix C if dcc-garch doesn't work
         T = self.steps
         Q_bar = self.parameters['Q_bar']
         Q = self.parameters['Q']
+        return_mean = self.parameters['mean']
         num_assets = self.parameters['num_assets']
         small_scalar = self.parameters['small_scalar']
+        H_init = self.parameters['H_init']
+        Q = self.parameters['Q']
+        omega = self.parameters['omega']
+        alpha = self.parameters['alpha']
+        beta = self.parameters['beta']
+        a = self.parameters['a']
+        b = self.parameters['b']
 
         condNum_list = []
         a_list = []
 
         # initialize
-        a0 = np.linalg.cholesky(parameters['H_init'])@np.random.multivariate_normal(np.zeros(parameters['num_assets']),1*np.identity(parameters['num_assets']))
+        a0 = np.linalg.cholesky(H_init)@np.random.multivariate_normal(np.zeros(num_assets),1*np.identity(num_assets))
 
         # needed to ensure H psd
-        h0 = np.ones(parameters['num_assets'])*parameters['small_scalar']
+        h0 = np.ones(num_assets)*small_scalar
 
-        Q = parameters['Q']
 
-        for t in range(T):
+        for t in range(1000):
             # compute R_t
+            ### UPDATE: first compute decomp then do inversion 
             Q_star_inv = np.linalg.inv(np.diag(Q.diagonal()))
 
-            R = Q_star_inv@parameters['Q_bar']@Q_star_inv
+            R = Q_star_inv@Q_bar@Q_star_inv
 
             # compute D_t
-            h1 = parameters['omega'] + parameters['alpha']*a0**2 + parameters['beta']*h0
+            h1 = omega + alpha*a0**2 + beta*h0
             D = np.power(np.diag(h1),1/2)
 
             # compute H
@@ -175,29 +187,31 @@ class DataGenerator(object):
             e = np.random.multivariate_normal(np.zeros(num_assets),R)
 
             # step Q
-            Q = (1-a-b)*parameters['Q_bar'] + a*np.outer(e,e) + b*Q
+            Q = (1-a-b)*Q_bar + a*np.outer(e,e) + b*Q
 
             # step a,h
             h0 = h1
             a0 = a1.squeeze()
 
-            # covariance matrices - keep track of our generated data
-            condNum_list.append(np.linalg.cond(H))
-            H_list.append(H)
+            # correlation matrices - keep track of our generated data
+            condNum_list.append(np.linalg.cond(R))
             # returns
             a_list.append(a0)
         
         # [assets,num_days]
-        returns_close = np.vstack(a_list).T
+        returns_close = np.cumsum(np.vstack(a_list),axis=1).T + return_mean
         
         # roll 1 day forward to get open,close - close becomes new open
         returns_open = np.roll(returns_close,1,axis=1)
+        
         # start at 0 
         returns_open[:,0] = np.zeros(num_assets)
         
         returns_stack = np.stack([returns_open,returns_close],axis=2)
-        
-        return np.concatenate((returns_stack,np.tile(np.asarray(condNum_list),(num_assets,1))[:,:,None]),axis=2)
+
+        # return np.concatenate((returns_stack,np.tile(np.asarray(condNum_list),(num_assets,1))[:,:,None]),axis=2)
+        # return returns data, condition number data
+        return returns_stack, np.asarray(condNum_list)
 
 
 class PortfolioSim(object):
@@ -211,8 +225,7 @@ class PortfolioSim(object):
     p0 = 1.0
     infos = []
 
-    def __init__(self, asset_names=list(), steps=730, epsilon=0.01, time_cost=0.0):
-        self.asset_names = asset_names
+    def __init__(self, steps=730, epsilon=0.01, time_cost=0.0):
         self.epsilon = epsilon
         self.time_cost = time_cost
         self.steps = steps
@@ -228,12 +241,16 @@ class PortfolioSim(object):
         assert w1.shape == y1.shape, 'w1 and y1 must have the same shape'
         assert y1[0] == 1.0, 'y1[0] must be 1'
 
+        # print('y1',y1)
+
         p0 = self.p0
 
         dw1 = (y1 * w1) / (np.dot(y1, w1) + eps)  # (eq7) weights evolve into
         
         ### UPDATE
+        # print('c1',c1)
         mu1 = self.epsilon * c1 * (np.square(dw1 - w1)).sum()  # (eq16) cost to change portfolio with condition number cost and quadratic penalty - MODIFIED
+        # print('mu1',mu1)
 
         # mu1 = self.cost * (np.abs(dw1 - w1)).sum() # (eq16) cost to change portfolio - ORIGINAL
 
@@ -244,7 +261,7 @@ class PortfolioSim(object):
         p1 = p0 * np.dot(y1, w1) - mu1 # (eq11) final portfolio value - MODIFIED
 
         p1 = p1 * (1 - self.time_cost)  # we can add a cost to holding
-
+        # print('p1',p1)
         rho1 = p1 / p0 - 1  # rate of returns
         r1 = np.log((p1 + eps) / (p0 + eps))  # log rate of return
         reward = r1 / self.steps * 1000.  # (22) average logarithmic accumulated return
@@ -315,13 +332,14 @@ class PortfolioEnv(gym.Env):
                  ):
     """
     def __init__(self,
-                 steps=730,  # 2 years
-                 epsilon=0.01,
-                 time_cost=0.00,
-                 window_length=50,
-                 start_idx=0,
-                 num_assets = 10
-                 ):
+                parameters,
+                steps=730,  # 2 years
+                epsilon=0.01,
+                time_cost=0.00,
+                window_length=50,
+                start_idx=0,
+                num_assets = 10
+                ):
         """
         An environment for financial portfolio management.
         Params:
@@ -334,9 +352,11 @@ class PortfolioEnv(gym.Env):
             start_idx - The number of days from '2012-08-13' of the dataset
             sample_start_date - The start date sampling from the history
         """
+        self.parameters = parameters
         self.window_length = window_length
         self.num_stocks = num_assets
         self.start_idx = start_idx
+
 
 
         # self.src = DataGenerator(history, abbreviation, steps=steps, window_length=window_length, start_idx=start_idx,
@@ -344,7 +364,6 @@ class PortfolioEnv(gym.Env):
 
         self.src = DataGenerator(parameters, steps=steps, window_length=window_length, start_idx=start_idx)
         self.sim = PortfolioSim(
-            asset_names=abbreviation,
             epsilon=epsilon,
             time_cost=time_cost,
             steps=steps)
@@ -352,11 +371,13 @@ class PortfolioEnv(gym.Env):
         # openai gym attributes
         # action will be the portfolio weights from 0 to 1 for each asset
         self.action_space = gym.spaces.Box(
-            0, 1, shape=(len(self.src.asset_names) + 1,))  # include cash
+            0, 1, shape=(self.src.num_assets + 1,))  # include cash
 
         # get the observation space from the data min and max
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(len(abbreviation), window_length,
-                                                                                 history.shape[-1]))
+        # self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(num_assets, window_length,
+        #                                                                          history.shape[-1]))
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(num_assets, window_length,
+                                                                                  self.src._data.shape[-1]))
         
     def step(self, action):
         return self._step(action)
@@ -370,7 +391,7 @@ class PortfolioEnv(gym.Env):
         """
         np.testing.assert_almost_equal(
             action.shape,
-            (len(self.sim.asset_names) + 1,)
+            (self.src.num_assets + 1,)
         )
 
         # normalise just in case
@@ -392,6 +413,10 @@ class PortfolioEnv(gym.Env):
         observation = np.concatenate((cash_observation, observation), axis=0)
 
         cash_ground_truth = np.ones((1, 1, ground_truth_obs.shape[2]))
+
+        '''print test'''
+        # print('cash_ground_truth.shape: {}, ground_truth_obs.shape: {}'.format(cash_ground_truth.shape,ground_truth_obs.shape))
+
         ground_truth_obs = np.concatenate((cash_ground_truth, ground_truth_obs), axis=0)
 
 
@@ -403,7 +428,7 @@ class PortfolioEnv(gym.Env):
 
         # condition number
         ### UPDATE
-        c1 = observation[0, -1, 2]
+        c1 = 1
         y1 = close_price_vector / open_price_vector
         reward, info, done2 = self.sim._step(weights, y1, c1)
 
@@ -419,6 +444,7 @@ class PortfolioEnv(gym.Env):
         return observation, reward, done1 or done2, info
     
     def reset(self):
+        print('resetting')
         return self._reset()
 
     def _reset(self):
@@ -428,9 +454,13 @@ class PortfolioEnv(gym.Env):
         cash_observation = np.ones((1, self.window_length, observation.shape[2]))
         observation = np.concatenate((cash_observation, observation), axis=0)
         cash_ground_truth = np.ones((1, 1, ground_truth_obs.shape[2]))
+        # print(cash_ground_truth.shape)
         ground_truth_obs = np.concatenate((cash_ground_truth, ground_truth_obs), axis=0)
         info = {}
         info['next_obs'] = ground_truth_obs
+        # print('observation',observation)
+        # print('env observation shape: ',observation.shape)
+        # print('env obs: ',observation)
         return observation, info
 
     def _render(self, mode='human', close=False):

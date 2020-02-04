@@ -93,10 +93,12 @@ class DDPG(BaseModel):
         gamma = self.config['gamma']
         self.buffer = ReplayBuffer(self.config['buffer size'])
 
+        print('Number of episodes: ',num_episode)
+
         # main training loop
         for i in range(num_episode):
             if verbose and debug:
-                print("Episode: " + str(i) + " Replay Buffer " + str(self.buffer.count()))
+                print("Episode: " + str(i) + " Replay Buffer " + str(self.buffer.count))
 
             # resetting environment returns obs, info
             # obs = data = self._data[:, self.idx - self.window_length:self.idx + self.steps + 1, :4]
@@ -105,20 +107,25 @@ class DDPG(BaseModel):
             
             # resets sim: sets p0=1
             previous_observation = self.env.reset()
+            # print('before normalizer, previous_observation shape: ',previous_observation[0].shape)
             if self.obs_normalizer:
                 previous_observation = self.obs_normalizer(previous_observation)
+
+            # print('after normalizer, previous_observation shape: ',previous_observation.shape)
 
             ep_reward = 0
             ep_ave_max_q = 0
             # keeps sampling until done - default max step = 1000
             for j in range(self.config['max step']):
-                action = self.actor.predict(np.expand_dims(previous_observation, axis=0)).squeeze(
-                    axis=0) + self.actor_noise()
-
+                # print(previous_observation)
+                # print(np.isnan(np.sum(previous_observation)))
+                action = self.actor.predict(np.expand_dims(previous_observation, axis=0)).squeeze(axis=0) + self.actor_noise()
+                # print(action)
                 if self.action_processor:
                     action_take = self.action_processor(action)
                 else:
                     action_take = action
+                
                 # step forward
                 observation, reward, done, _ = self.env.step(action_take)
 
@@ -170,7 +177,7 @@ class DDPG(BaseModel):
                     writer.add_summary(summary_str, i)
                     writer.flush()
 
-                    print('Episode: {:d}, Reward: {:.2f}, Qmax: {:.4f}'.format(i, ep_reward, (ep_ave_max_q / float(j))))
+                    print('Episode: {:d}, Reward: {:.8f}, Qmax: {:.8f}'.format(i, ep_reward, (ep_ave_max_q / float(j))))
                     break
 
         self.save_model(verbose=True)
