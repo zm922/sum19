@@ -11,6 +11,7 @@ Dat <- Dat[-c(1)]
 # n.stocks = dim(Dat)[2]
 n.stocks = 100
 Dat = Dat[,1:n.stocks]
+length = dim(Dat)[1]
 
 # select columns corresponding to list
 #col.num <- which(colnames(Dat) %in% name_data)
@@ -39,6 +40,7 @@ multf = multifit(uspec.n, Dat)
 # In this specification we have to state how the univariate volatilities are modeled 
 # (as per uspec.n) and how complex the dynamic structure of the correlation matrix is 
 # (here we are using the most standard dccOrder = c(1, 1) specification).
+
 spec2 = dccspec(uspec = uspec.n, dccOrder = c(1, 1), distribution = 'mvnorm')
 
 # estimate the model using the dccfit function
@@ -48,35 +50,45 @@ spec2 = dccspec(uspec = uspec.n, dccOrder = c(1, 1), distribution = 'mvnorm')
 fit2 = dccfit(spec2, data = Dat, fit.control = list(eval.se=FALSE), fit = multf)
 
 
-presigma = tail(sigma(fit2), 1)
-preresiduals = tail( residuals(fit2), 1)
-prereturns = tail( as.matrix(Dat), 1 )
+# save model coef
+write.csv(fit2@mfit$coef,'coef100.csv')
+write.csv(fit2@mfit$Qbar,'Q_bar100.csv')
+write.csv(fit2@mfit$H[length],'H_init100.csv')
+# last data point, use as initial Q
+write.csv(fit2@mfit$Q[length],'Q_init100.csv')
 
-# simulate returns
 
-sim1 = dccsim(fitORspec = fit2, n.sim = 3000, n.start = 0, m.sim = 1, startMethod = "sample", 
-              presigma = presigma, preresiduals = preresiduals, prereturns = prereturns, 
-              preQ = last(rcor(fit2, type = "Q"))[,,1], Qbar = fit2@mfit$Qbar, 
-              preZ = tail(fit2@mfit$stdresid, 1),
-              rseed = c(100, 200), mexsimdata = NULL, vexsimdata = NULL)
+fit2@mfit$
 
-returns = data.frame(sim1@msim$simX)
-#cov_mats = array(sim1@msim$simH)
-cov_mats = rcov(sim1)
-stocks = colnames(Dat)
-colnames(returns) = stocks
-
-# Get the model based time varying covariance (arrays) matrices
-cov1 = rcov(fit2)  # extracts the covariance matrix
-
-# save simulated cov matrices in numpy format
-npySave("mgarch_sim_3000_cov100.npy", cov_mats)
-
-# save simulated cov matrices in csv format
-# write.csv(cov_mats,'mgarch_sim_3000_cov100.csv')
-
-# save returns
-#returns_df <- data.frame(returns)
-#colnames(returns_df) <- stock_names
-write.csv(returns,'mgarch_sim_3000_z100.csv')
+# presigma = tail(sigma(fit2), 1)
+# preresiduals = tail( residuals(fit2), 1)
+# prereturns = tail( as.matrix(Dat), 1 )
+# 
+# # simulate returns
+# 
+# sim1 = dccsim(fitORspec = fit2, n.sim = 3000, n.start = 0, m.sim = 1, startMethod = "sample", 
+#               presigma = presigma, preresiduals = preresiduals, prereturns = prereturns, 
+#               preQ = last(rcor(fit2, type = "Q"))[,,1], Qbar = fit2@mfit$Qbar, 
+#               preZ = tail(fit2@mfit$stdresid, 1),
+#               rseed = c(100, 200), mexsimdata = NULL, vexsimdata = NULL)
+# 
+# returns = data.frame(sim1@msim$simX)
+# #cov_mats = array(sim1@msim$simH)
+# cov_mats = rcov(sim1)
+# stocks = colnames(Dat)
+# colnames(returns) = stocks
+# 
+# # Get the model based time varying covariance (arrays) matrices
+# cov1 = rcov(fit2)  # extracts the covariance matrix
+# 
+# # save simulated cov matrices in numpy format
+# npySave("mgarch_sim_3000_cov100.npy", cov_mats)
+# 
+# # save simulated cov matrices in csv format
+# # write.csv(cov_mats,'mgarch_sim_3000_cov100.csv')
+# 
+# # save returns
+# #returns_df <- data.frame(returns)
+# #colnames(returns_df) <- stock_names
+# write.csv(returns,'mgarch_sim_3000_z100.csv')
 

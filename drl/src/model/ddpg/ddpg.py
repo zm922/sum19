@@ -143,7 +143,6 @@ class DDPG(BaseModel):
                     target_q = self.critic.predict_target(s2_batch, self.actor.predict_target(s2_batch))
 
                     y_i = []
-                    ## ??
                     for k in range(batch_size):
                         if t_batch[k]:
                             y_i.append(r_batch[k])

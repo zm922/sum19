@@ -162,7 +162,7 @@ class DataGenerator(object):
         # needed to ensure H psd
         h0 = np.ones(num_assets)*small_scalar
 
-
+        # change this to T + 50
         for t in range(1000):
             # compute R_t
             ### UPDATE: first compute decomp then do inversion 
@@ -426,11 +426,13 @@ class PortfolioEnv(gym.Env):
         open_price_vector = observation[:, -1, 0]
         
 
-        # condition number
         ### UPDATE
+        # condition number - leave fixed for now
         c1 = 1
         y1 = close_price_vector / open_price_vector
         reward, info, done2 = self.sim._step(weights, y1, c1)
+        if self.src.step % 100 == 0:
+            print(reward)
 
         # calculate return for buy and hold a bit of each asset
         info['market_value'] = np.cumprod([inf["return"] for inf in self.infos + [info]])[-1]
@@ -444,7 +446,7 @@ class PortfolioEnv(gym.Env):
         return observation, reward, done1 or done2, info
     
     def reset(self):
-        print('resetting')
+        # print('resetting')
         return self._reset()
 
     def _reset(self):
@@ -537,16 +539,14 @@ class MultiActionPortfolioEnv(PortfolioEnv):
         cash_ground_truth = np.ones((1, 1, ground_truth_obs.shape[2]))
         ground_truth_obs = np.concatenate((cash_ground_truth, ground_truth_obs), axis=0)
 
-
-        ### THESE AREN'T PRICES ANYMORE -- NEED TO FIX THIS??
-
         # relative price vector of last observation day (close/open)
         close_price_vector = observation[:, -1, 1]
         open_price_vector = observation[:, -1, 0]
         
         # condition number
         ### UPDATE
-        c1 = observation[0, -1, 2]
+        # c1 = observation[0, -1, 2]
+        c1 = 1
         y1 = close_price_vector / open_price_vector
 
         rewards = np.empty(shape=(weights.shape[0]))
