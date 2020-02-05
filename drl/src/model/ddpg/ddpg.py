@@ -8,6 +8,7 @@ import traceback
 import json
 import numpy as np
 import tensorflow as tf
+from IPython import display
 
 from .replay_buffer import ReplayBuffer
 from ..base_model import BaseModel
@@ -176,7 +177,9 @@ class DDPG(BaseModel):
                     writer.add_summary(summary_str, i)
                     writer.flush()
 
-                    print('Episode: {:d}, Reward: {:.8f}, Qmax: {:.8f}'.format(i, ep_reward, (ep_ave_max_q / float(j))))
+                    print('[EPISODE]: {:d}, [REWARD]: {:.8f}, [Qmax]: {:.8f}'.format(i, ep_reward, (ep_ave_max_q / float(j))))
+                    display.clear_output(wait=True)
+
                     break
 
         self.save_model(verbose=True)
