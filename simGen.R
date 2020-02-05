@@ -53,12 +53,9 @@ fit2 = dccfit(spec2, data = Dat, fit.control = list(eval.se=FALSE), fit = multf)
 # save model coef
 write.csv(fit2@mfit$coef,'coef100.csv')
 write.csv(fit2@mfit$Qbar,'Q_bar100.csv')
-write.csv(fit2@mfit$H[length],'H_init100.csv')
+write.csv(fit2@mfit$H[,,length],'H_init100.csv')
 # last data point, use as initial Q
 write.csv(fit2@mfit$Q[length],'Q_init100.csv')
-
-
-fit2@mfit$
 
 # presigma = tail(sigma(fit2), 1)
 # preresiduals = tail( residuals(fit2), 1)
