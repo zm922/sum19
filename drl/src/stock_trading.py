@@ -19,7 +19,7 @@ import tensorflow as tf
 import argparse
 import pprint
 
-DEBUG = True
+DEBUG = False
 
 
 def get_model_path(window_length, predictor_type, use_batch_norm):

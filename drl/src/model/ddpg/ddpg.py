@@ -98,8 +98,8 @@ class DDPG(BaseModel):
 
         # main training loop
         for i in range(num_episode):
-            if verbose and debug:
-                print("Episode: " + str(i) + " Replay Buffer " + str(self.buffer.count))
+            # if verbose and debug:
+            #     print("Episode: " + str(i) + " Replay Buffer " + str(self.buffer.count))
 
             # resetting environment returns obs, info
             # obs = data = self._data[:, self.idx - self.window_length:self.idx + self.steps + 1, :4]
@@ -155,6 +155,7 @@ class DDPG(BaseModel):
                         s_batch, a_batch, np.reshape(y_i, (batch_size, 1)))
 
                     ep_ave_max_q += np.amax(predicted_q_value)
+                    # print(predicted_q_value)
 
                     # Update the actor policy using the sampled gradient
                     a_outs = self.actor.predict(s_batch)
@@ -178,7 +179,7 @@ class DDPG(BaseModel):
                     writer.flush()
 
                     print('[EPISODE]: {:d}, [REWARD]: {:.8f}, [Qmax]: {:.8f}'.format(i, ep_reward, (ep_ave_max_q / float(j))))
-                    display.clear_output(wait=True)
+                    # display.clear_output(wait=True)
 
                     break
 

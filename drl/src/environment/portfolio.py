@@ -163,10 +163,10 @@ class DataGenerator(object):
         h0 = np.ones(num_assets)*small_scalar
 
         # change this to T + 50
-        for t in range(1000):
+        for t in range(10000):
             # compute R_t
             ### UPDATE: first compute decomp then do inversion 
-            Q_star_inv = np.linalg.inv(np.diag(Q.diagonal()))
+            Q_star_inv = np.linalg.inv(np.diag(np.sqrt(Q.diagonal())))
 
             R = Q_star_inv@Q_bar@Q_star_inv
 
@@ -197,17 +197,21 @@ class DataGenerator(object):
             condNum_list.append(np.linalg.cond(R))
             # returns
             a_list.append(a0)
-        
         # [assets,num_days]
-        returns_close = np.cumsum(np.vstack(a_list),axis=1).T + return_mean
-        
+        returns_close = np.vstack(a_list)
+        returns_close = np.cumsum(returns_close,axis=0)
+        returns_close = returns_close - returns_close.min()
+        # returns_close -= returns_close.min()
         # roll 1 day forward to get open,close - close becomes new open
         returns_open = np.roll(returns_close,1,axis=1)
-        
+        # print('returns_close shape',returns_close.shape)
+        # print('returns_close shape',returns_open.shape)
+
         # start at 0 
-        returns_open[:,0] = np.zeros(num_assets)
-        
-        returns_stack = np.stack([returns_open,returns_close],axis=2)
+        returns_open[0,:] = np.zeros(num_assets)
+        returns = np.stack([returns_open,returns_close],axis=2)
+        # observation = np.concatenate((returns_stack,np.tile(np.asarray(condNum_list),(num_assets,1))[:,:,None]),axis=2)
+        condNum_array = np.asarray(condNum_list)
 
         # return np.concatenate((returns_stack,np.tile(np.asarray(condNum_list),(num_assets,1))[:,:,None]),axis=2)
         # return returns data, condition number data
@@ -431,8 +435,8 @@ class PortfolioEnv(gym.Env):
         c1 = 1
         y1 = close_price_vector / open_price_vector
         reward, info, done2 = self.sim._step(weights, y1, c1)
-        if self.src.step % 100 == 0:
-            print(reward)
+        # if self.src.step % 100 == 0:
+        #     print(reward)
 
         # calculate return for buy and hold a bit of each asset
         info['market_value'] = np.cumprod([inf["return"] for inf in self.infos + [info]])[-1]
