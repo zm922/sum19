@@ -163,7 +163,8 @@ class DataGenerator(object):
         h0 = np.ones(num_assets)*small_scalar
 
         # change this to T + 50
-        for t in range(10000):
+        T = 10000
+        for t in range(T):
             # compute R_t
             ### UPDATE: first compute decomp then do inversion 
             Q_star_inv = np.linalg.inv(np.diag(np.sqrt(Q.diagonal())))
@@ -200,7 +201,7 @@ class DataGenerator(object):
         # [assets,num_days]
         returns_close = np.vstack(a_list)
         returns_close = np.cumsum(returns_close,axis=0)
-        returns_close = returns_close - returns_close.min()
+        returns_close = returns_close + 100
         # returns_close -= returns_close.min()
         # roll 1 day forward to get open,close - close becomes new open
         returns_open = np.roll(returns_close,1,axis=1)
@@ -213,9 +214,10 @@ class DataGenerator(object):
         # observation = np.concatenate((returns_stack,np.tile(np.asarray(condNum_list),(num_assets,1))[:,:,None]),axis=2)
         condNum_array = np.asarray(condNum_list)
 
+        returns = np.swapaxes(returns,0,1)
         # return np.concatenate((returns_stack,np.tile(np.asarray(condNum_list),(num_assets,1))[:,:,None]),axis=2)
         # return returns data, condition number data
-        return returns_stack, np.asarray(condNum_list)
+        return returns, np.asarray(condNum_list)
 
 
 class PortfolioSim(object):
@@ -265,7 +267,6 @@ class PortfolioSim(object):
         p1 = p0 * np.dot(y1, w1) - mu1 # (eq11) final portfolio value - MODIFIED
 
         p1 = p1 * (1 - self.time_cost)  # we can add a cost to holding
-        # print('p1',p1)
         rho1 = p1 / p0 - 1  # rate of returns
         r1 = np.log((p1 + eps) / (p0 + eps))  # log rate of return
         reward = r1 / self.steps * 1000.  # (22) average logarithmic accumulated return
@@ -457,7 +458,11 @@ class PortfolioEnv(gym.Env):
         self.infos = []
         self.sim.reset()
         observation, ground_truth_obs = self.src.reset()
+        # print('observation.shape',observation.shape)
+        # print('ground_truth_obs',ground_truth_obs.shape)
         cash_observation = np.ones((1, self.window_length, observation.shape[2]))
+        # print('cash_observation',cash_observation.shape)
+
         observation = np.concatenate((cash_observation, observation), axis=0)
         cash_ground_truth = np.ones((1, 1, ground_truth_obs.shape[2]))
         # print(cash_ground_truth.shape)

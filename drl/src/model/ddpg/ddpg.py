@@ -155,7 +155,10 @@ class DDPG(BaseModel):
                         s_batch, a_batch, np.reshape(y_i, (batch_size, 1)))
 
                     ep_ave_max_q += np.amax(predicted_q_value)
-                    # print(predicted_q_value)
+
+                    if j % 100 == 0:
+                        print('predicted_q_value.shape',predicted_q_value.shape)
+                        print('j: {}, ep_ave_max_q: {}'.format(j,ep_ave_max_q))
 
                     # Update the actor policy using the sampled gradient
                     a_outs = self.actor.predict(s_batch)
